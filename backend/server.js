@@ -11,7 +11,7 @@ dotenv.config();
 const app = express();
 
 const corsOptions = {
-  origin: "http://localhost:5173", // No trailing slash
+  origin: "https://coupon-app-one.vercel.app", // No trailing slash
   credentials: true,
 };
 

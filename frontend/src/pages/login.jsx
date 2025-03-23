@@ -11,10 +11,13 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/api/admin/login", {
-        username,
-        password,
-      });
+      const res = await axios.post(
+        "https://coupon-app-w9gt.onrender.com/api/admin/login",
+        {
+          username,
+          password,
+        }
+      );
 
       console.log("Login response:", res.data); // ✅ Debugging step
 

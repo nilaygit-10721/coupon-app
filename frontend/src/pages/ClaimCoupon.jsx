@@ -25,7 +25,7 @@ const ClaimCoupon = () => {
 
         // Use the public endpoint for all coupons instead of the claim endpoint
         const response = await axios.get(
-          "http://localhost:5000/api/coupons/all"
+          "https://coupon-app-w9gt.onrender.com/api/coupons/all"
         );
 
         // Filter only active and unclaimed coupons for display
@@ -62,9 +62,12 @@ const ClaimCoupon = () => {
       setIsError(false);
 
       // Change the request from GET to POST and modify the endpoint
-      const res = await axios.post(`http://localhost:5000/api/coupons/claim`, {
-        couponId: couponId,
-      });
+      const res = await axios.post(
+        `https://coupon-app-w9gt.onrender.com/api/coupons/claim`,
+        {
+          couponId: couponId,
+        }
+      );
 
       setIsSuccess(true);
       const claimedCode = res.data.coupon?.code || "";

@@ -22,9 +22,12 @@ const Admin = () => {
 
     try {
       setLoading(true);
-      const res = await axios.get("http://localhost:5000/api/coupons/all", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(
+        "https://coupon-app-w9gt.onrender.com/api/coupons/all",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setCoupons(res.data);
       setError(null);
     } catch (err) {
@@ -48,7 +51,7 @@ const Admin = () => {
     try {
       setIsAdding(true);
       await axios.post(
-        "http://localhost:5000/api/coupons/add",
+        "https://coupon-app-w9gt.onrender.com/api/coupons/add",
         { code: newCoupon },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -75,7 +78,7 @@ const Admin = () => {
 
     try {
       await axios.patch(
-        `http://localhost:5000/api/coupons/${id}`,
+        `https://coupon-app-w9gt.onrender.com/api/coupons/${id}`,
         { isActive: !currentStatus },
         {
           headers: { Authorization: `Bearer ${token}` },
