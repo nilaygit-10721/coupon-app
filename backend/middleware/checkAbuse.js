@@ -1,4 +1,4 @@
-import Coupon from "../models/Coupon.js";
+import Coupon from "../models/coupon.js";
 
 const checkAbuse = async (req, res, next) => {
   try {
