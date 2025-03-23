@@ -1,4 +1,4 @@
-import Coupon from "../models/Coupon.js";
+import Coupon from "../models/coupon.js";
 
 // Claim a coupon (public)
 // Claim a coupon (public)
