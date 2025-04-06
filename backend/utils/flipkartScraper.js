@@ -1,169 +1,75 @@
-const puppeteer = require("puppeteer");
-const Product = require("../models/Product");
+const puppeteer = require("puppeteer-extra");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+const Product = require("../models/Product"); // MongoDB Product Model
+
+puppeteer.use(StealthPlugin());
 
 async function scrapeFlipkart(query) {
-  console.log(`Starting Flipkart scraping for query: ${query}`);
-
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: true, // Change to false if debugging
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    defaultViewport: { width: 1366, height: 768 },
   });
+
   const page = await browser.newPage();
 
   try {
-    const url = `https://www.flipkart.com/search?q=${encodeURIComponent(
+    // Set User-Agent to prevent bot detection
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    );
+
+    // Navigate to Flipkart search results
+    const flipkartURL = `https://www.flipkart.com/search?q=${encodeURIComponent(
       query
     )}`;
-    console.log(`Navigating to: ${url}`);
-
-    await page.goto(url, {
-      waitUntil: "networkidle2",
-      timeout: 60000,
+    await page.goto(flipkartURL, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
     });
 
-    // Handle popup if present
-    try {
-      await page.waitForSelector('button[class*="2KpZ6l"]', { timeout: 3000 });
-      await page.click('button[class*="2KpZ6l"]');
-      console.log("Attempted to close popup");
-    } catch (e) {
-      console.log("No popup found or couldn't close it");
-    }
+    // Wait for product list
+    await page.waitForSelector("div.cPHDOP", { timeout: 30000 });
 
-    // Use page.waitFor instead of page.waitForTimeout for older Puppeteer versions
-    await page.waitFor(2000);
-
-    // Save screenshot for debugging
-    await page.screenshot({ path: "flipkart-debug.png", fullPage: true });
-    console.log("Screenshot saved to flipkart-debug.png");
-
-    // Extract product using more general selectors
+    // Extract product details
     const products = await page.evaluate(() => {
       const items = [];
+      document.querySelectorAll("div.cPHDOP").forEach((product) => {
+        const titleElement = product.querySelector(".KzDlHZ");
+        const priceElement = product.querySelector("div.Nx9bqj");
+        const discountElement = product.querySelector("div.UkUFwK span");
+        const linkElement = product.querySelector("a.CGtC98");
+        const imageElement = product.querySelector("img.DByuf4");
 
-      // Look for elements that look like product cards
-      const allElements = Array.from(document.querySelectorAll("div"));
+        if (titleElement && priceElement && linkElement) {
+          const priceText = priceElement.innerText.replace(/[^0-9]/g, ""); // Remove non-numeric chars
+          const price = priceText ? parseFloat(priceText) : null;
 
-      // Find elements that might be product cards
-      const productCards = allElements.filter((el) => {
-        const hasImage = el.querySelector("img") !== null;
-        const hasPrice = el.innerText.includes("₹");
-        const hasContent = el.innerText.length > 20;
-
-        return hasImage && hasPrice && hasContent;
-      });
-
-      console.log(`Found ${productCards.length} potential product cards`);
-
-      // Process only the first product for testing
-      if (productCards.length > 0) {
-        const card = productCards[0];
-
-        // Extract product details
-        const allImages = card.querySelectorAll("img");
-        const imageUrl = allImages.length > 0 ? allImages[0].src : null;
-
-        // Extract price
-        const text = card.innerText;
-        let price = null;
-        const priceMatch = text.match(/₹([0-9,]+)/);
-        if (priceMatch && priceMatch[1]) {
-          price = parseFloat(priceMatch[1].replace(/,/g, ""));
-        }
-
-        // Extract title
-        const lines = text.split("\n").filter((line) => line.trim().length > 0);
-        const title = lines.length > 0 ? lines[0].trim() : null;
-
-        // Extract product URL
-        const links = card.querySelectorAll("a");
-        let productUrl = null;
-        for (const link of links) {
-          if (link.href && link.href.includes("/product/")) {
-            productUrl = link.href;
-            break;
-          }
-        }
-
-        if (title && price) {
           items.push({
-            title,
+            title: titleElement.innerText.trim(),
             price,
-            originalPrice: price * 1.1,
-            discountPercentage: 10,
-            imageUrl,
-            productUrl,
+            originalPrice: price ? price * 1.1 : null, // Assume 10% discount for calculation
+            discountPercentage: discountElement
+              ? parseInt(discountElement.innerText.replace("%", ""))
+              : 0,
+            imageUrl: imageElement ? imageElement.src : null,
+            productUrl:
+              "https://www.flipkart.com" + linkElement.getAttribute("href"),
             source: "flipkart",
           });
         }
-      }
-
+      });
       return items;
     });
 
-    console.log(`Found ${products.length} products to save`);
-
+    // Save scraped data to MongoDB
     if (products.length > 0) {
-      console.log(
-        `✅ Scraped product: ${JSON.stringify(products[0], null, 2)}`
-      );
-      return products;
+      await Product.insertMany(products);
+      console.log(`✅ Scraped & saved ${products.length} Flipkart products`);
     } else {
-      console.log("No products found. Trying a simpler extraction method...");
-
-      // Try a more targeted approach for finding laptop products
-      const simpleProduct = await page.evaluate(() => {
-        // Look specifically for product titles and prices
-        const titles = Array.from(
-          document.querySelectorAll('div[class*="_4rR01T"], a[class*="s1Q9rs"]')
-        ).map((el) => el.innerText);
-
-        const prices = Array.from(
-          document.querySelectorAll('div[class*="_30jeq3"]')
-        ).map((el) => el.innerText);
-
-        const images = Array.from(
-          document.querySelectorAll(
-            'img[class*="_396cs4"], img[class*="_2r_T1I"]'
-          )
-        ).map((el) => el.src);
-
-        if (titles.length > 0 && prices.length > 0) {
-          return {
-            title: titles[0],
-            price: parseFloat(prices[0].replace(/[^0-9]/g, "")),
-            imageUrl: images[0] || null,
-            source: "flipkart",
-          };
-        }
-        return null;
-      });
-
-      if (simpleProduct) {
-        simpleProduct.originalPrice = simpleProduct.price * 1.1;
-        simpleProduct.discountPercentage = 10;
-        simpleProduct.productUrl = url;
-        console.log(
-          `✅ Scraped simple product: ${JSON.stringify(simpleProduct, null, 2)}`
-        );
-        return [simpleProduct];
-      }
-
-      // Last resort - return a placeholder
-      return [
-        {
-          title: `${query} - Placeholder`,
-          price: 29999,
-          originalPrice: 32999,
-          discountPercentage: 10,
-          imageUrl: null,
-          productUrl: url,
-          source: "flipkart",
-          note: "Placeholder. Actual scraping failed.",
-        },
-      ];
+      console.log("⚠ No products found.");
     }
+
+    return products;
   } catch (error) {
     console.error("❌ Flipkart scraping failed:", error);
     throw error;
